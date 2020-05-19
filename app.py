@@ -315,7 +315,12 @@ app.layout = dbc.Container(
         dbc.Row(
             [
                 dbc.Col(controls, md=3),
-                dbc.Col(dcc.Graph(id="primary-graph", config=plotly_config), md=9),
+                dbc.Col(dcc.Loading(
+                    id="loading-2",
+                    children=[dcc.Graph(id="primary-graph", config=plotly_config)],
+                    type="circle",
+                ), md=9)
+                # dbc.Col(dcc.Graph(id="primary-graph", config=plotly_config), md=9),
             ],
             align="center",
         ),
