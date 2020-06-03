@@ -19,7 +19,7 @@ import zipfile
 from sqlalchemy import create_engine
 
 from column_translater import lanl_to_ihme_translator
-from region_abbreviations import us_state_abbrev
+from region_abbreviations import us_state_abbrev, abbrev_us_state
 from config import app_config
 from plot_option_data import csv_dtypes
 
@@ -169,6 +169,33 @@ def process_lanl_compiled(metric):
   
     return df
 
+
+def get_rt_live_data():
+    # Assuming this URL doesn't change
+    url = "https://d14wlfuexuxgcm.cloudfront.net/covid/rt.csv"
+    r = requests.get(url)
+    forecast_date = datetime.today().date()
+    rt_live_index = ['model_version','location_name','date']
+
+    if r.ok:
+        data = r.content.decode('utf8')
+        df = pd.read_csv(io.StringIO(data))
+        df.drop(columns=['lower_50','upper_50', 'new_cases'], inplace=True, errors='ignore')
+        metrics = ['mean', 'median', 'lower_90', 'upper_90']
+        metrics_dict = {metric : f'rt_live_{metric}' for metric in metrics}
+        # Merging dictionaries, see https://stackoverflow.com/a/26853961 for long-winded explanation
+        df.rename(columns={**{'region':'location_name'},**metrics_dict}, inplace=True)
+        df['model_version'] = forecast_date
+        df['model_name'] = "RT Live"
+        df.replace({'location_name': abbrev_us_state}, inplace=True)
+        # df.to_csv(os.path.join('data','rt_live_data.csv'), index=False)
+        print(f'rt_live data scraped')
+        return df
+    else:
+        print('unable to download rt_live data. Did they change the URL?')
+        return None
+
+
 def merge_projections():
     '''
     process and merge IHME / LANL data
@@ -208,6 +235,12 @@ def merge_projections():
 
     #concatenate IHME and LANL data
     merged = pd.concat([ihme, lanl], axis=0, ignore_index=True)
+    # Let's add in the rt_live data without saving it as a csv
+    rt_live_data = get_rt_live_data()
+    if rt_live_data is not None:
+        merged = pd.concat([merged, rt_live_data], axis=0, ignore_index=True)
+    else:
+        print("NOTE: did not merge in rt_live data")
     merged.to_csv(os.path.join('data','merged_projections.csv'), index=False)
 
     print('merged data:', merged.shape)
